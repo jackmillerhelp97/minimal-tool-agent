@@ -102,6 +102,46 @@ const result = await runToolLoop({
 console.log(result.content);
 ```
 
+## Conversation history
+
+`runToolLoop` is stateless. It does not store conversation history for you, but it does return the updated message list after every run. For a chatbot API, persist that returned `messages` array in your own app storage, then pass it back into the next call.
+
+```ts
+import { runToolLoop, type ModelMessage } from "@jackmiller/minimal-tool-agent";
+
+const conversations = new Map<string, ModelMessage[]>();
+
+async function handleChatMessage(conversationId: string, userText: string) {
+  const previousMessages = conversations.get(conversationId) ?? [
+    { role: "system", content: "You are a concise, helpful assistant." }
+  ];
+
+  const result = await runToolLoop({
+    model,
+    tools: [weather],
+    messages: [
+      ...previousMessages,
+      { role: "user", content: userText }
+    ],
+    maxSteps: 4
+  });
+
+  conversations.set(conversationId, result.messages);
+
+  return result.content;
+}
+```
+
+In production, replace the in-memory `Map` with your normal persistence layer, such as Postgres, SQLite, Redis, DynamoDB, or your existing conversation table. The important pattern is:
+
+1. Load prior messages for the conversation or thread.
+2. Append the new user message.
+3. Call `runToolLoop`.
+4. Save `result.messages` as the new canonical history.
+5. Return `result.content` to the user.
+
+This keeps the package focused on the validated tool-call loop while letting your application own retention, privacy, truncation, and multi-user storage policy.
+
 ## What it includes
 
 - `createTool` with Zod input validation.
